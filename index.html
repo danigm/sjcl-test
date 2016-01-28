@@ -1,0 +1,80 @@
+<html>
+    <head>
+    </head>
+    <body>
+        <div id="output"> </div>
+
+        <script src="sjcl.js"></script>
+
+        <script>
+            // Serialized public key:
+            function spub(pub) {
+                var x = pub.get();
+                return sjcl.codec.base64.fromBits(x.x.concat(x.y));
+            }
+
+            // Unserialized public key:
+            function upub(pub) {
+                return new sjcl.ecc.elGamal.publicKey(
+                    sjcl.ecc.curves.c256,
+                    sjcl.codec.base64.toBits(pub)
+                );
+            }
+
+            // Serialized private key:
+            function ssec(sec) {
+                return sjcl.codec.base64.fromBits(sec.get());
+            }
+
+            // Unserialized private key:
+            function usec(sec) {
+                return new sjcl.ecc.elGamal.secretKey(
+                    sjcl.ecc.curves.c256,
+                    sjcl.ecc.curves.c256.field.fromBits(sjcl.codec.base64.toBits(sec))
+                );
+            }
+
+            // private key is encrypted with passwd
+            function genkey(passwd) {
+                var key = { pub: '', priv: '' };
+                var pair = sjcl.ecc.elGamal.generateKeys(256);
+                var pub = pair.pub, sec = pair.sec;
+
+                key.pub = spub(pub);
+
+                // symetric encrypt of private key
+                key.priv = btoa(JSON.stringify(sjcl.encrypt(passwd, ssec(sec))));;
+
+                return key;
+            }
+
+            function encrypt(key, message) {
+                var k = upub(key);
+                var secret = sjcl.encrypt(k, message);
+                return btoa(JSON.stringify(secret));
+            }
+
+            // we use passwd to decrypt the private key and then the
+            // private key to decrypt the message
+            function decrypt(passwd, key, message) {
+                // symetric decrypt and deserializing
+                key = JSON.parse(atob(key));
+                message = JSON.parse(atob(message));
+                var priv = usec(sjcl.decrypt(password, key));
+                var clear = sjcl.decrypt(priv, message);
+                return clear;
+            }
+        </script>
+
+        <script>
+            // password getted from input
+            var password = 'xxx';
+
+            var k = genkey(password);
+            var secret = encrypt(k.pub, "HELLO WORLD!");
+            var clear = decrypt(password, k.priv, secret);
+
+            document.querySelector("#output").innerHTML = clear;
+        </script>
+    </body>
+</html>
